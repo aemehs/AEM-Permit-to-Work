@@ -1,0 +1,1429 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AEM Permit to Work System - EHS-FRM-917 Rev 2</title>
+  
+  <!-- Tailwind CSS & FontAwesome -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+
+  <!-- FIREBASE SDKs (Compat Version for Direct Browser Scripting) -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+
+  <style>
+    /* PRINT OPTIMIZATION FOR EXACT 2-PAGE LAYOUT */
+    @media print {
+      @page {
+        size: A4 portrait;
+        margin: 6mm 8mm;
+      }
+      body {
+        background-color: white !important;
+        color: black !important;
+        font-size: 10px !important;
+      }
+      .no-print {
+        display: none !important;
+      }
+      #printableArea, #printableArea * {
+        visibility: visible;
+      }
+      #printableArea {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        margin: 0;
+        padding: 0;
+      }
+      section {
+        border-width: 1.5px !important;
+        border-color: #cbd5e1 !important;
+        padding: 5px 8px !important;
+        margin-bottom: 5px !important;
+        background-color: white !important;
+        break-inside: avoid;
+      }
+      .page-break-after {
+        page-break-after: always;
+        break-after: page;
+      }
+      h2 { font-size: 15px !important; }
+      h3 { font-size: 10.5px !important; }
+      input, select, textarea {
+        font-size: 9.5px !important;
+        padding: 2px 4px !important;
+        border-color: #94a3b8 !important;
+      }
+      .h-20 { height: 40px !important; }
+    }
+  </style>
+</head>
+<body class="bg-slate-100 min-h-screen text-slate-800 font-sans pb-12">
+
+  <!-- TOP ROLE SWITCHER HEADER -->
+  <header class="bg-slate-900 text-white shadow-md sticky top-0 z-50 no-print">
+    <div class="max-w-7xl mx-auto px-4 py-3 flex flex-wrap justify-between items-center gap-3">
+      <div class="flex items-center space-x-3">
+        <div class="bg-emerald-500 text-white p-2 rounded-lg font-bold text-lg flex items-center justify-center w-10 h-10">AEM</div>
+        <div>
+          <h1 class="font-bold text-base leading-tight">Armstrong Electronics Sdn Bhd</h1>
+          <p class="text-xs text-slate-400">EHS-FRM-917 Rev 2 | AEM-EHS-SOP-011 Rev 2</p>
+        </div>
+      </div>
+
+      <!-- Role Switcher -->
+      <div class="flex items-center space-x-2 bg-slate-800 p-1.5 rounded-xl text-xs border border-slate-700">
+        <span class="text-slate-400 pl-2 pr-1 font-semibold">Active Role:</span>
+        <button onclick="requestRoleSwitch('requestor')" id="role-btn-requestor" class="px-3 py-1.5 rounded-lg font-medium transition bg-emerald-600 text-white">Work Requestor</button>
+        <button onclick="requestRoleSwitch('contractor')" id="role-btn-contractor" class="px-3 py-1.5 rounded-lg font-medium text-slate-300 hover:text-white transition">Contractor</button>
+        <button onclick="requestRoleSwitch('ehs')" id="role-btn-ehs" class="px-3 py-1.5 rounded-lg font-medium text-amber-400 hover:text-amber-300 transition flex items-center gap-1">
+          <i class="fa-solid fa-lock text-[10px]"></i> EHS Admin
+        </button>
+        <button onclick="requestRoleSwitch('owner')" id="role-btn-owner" class="px-3 py-1.5 rounded-lg font-medium text-slate-300 hover:text-white transition">Area Owner / HOD</button>
+        <button onclick="requestRoleSwitch('security')" id="role-btn-security" class="px-3 py-1.5 rounded-lg font-medium text-slate-300 hover:text-white transition">Security Check</button>
+      </div>
+
+      <div class="flex items-center space-x-2">
+        <button onclick="switchView('form')" id="tab-form" class="bg-white/10 hover:bg-white/20 text-white text-xs px-3 py-1.5 rounded-lg border border-white/20 font-medium">New / Current PTW</button>
+        <button onclick="switchView('dashboard')" id="tab-dashboard" class="bg-white/10 hover:bg-white/20 text-white text-xs px-3 py-1.5 rounded-lg border border-white/20 font-medium">Dashboard & Records</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- WORKFLOW STATUS BAR -->
+  <div class="bg-slate-800 text-white px-4 py-2.5 shadow-inner no-print border-b border-slate-700">
+    <div class="max-w-6xl mx-auto flex flex-wrap items-center justify-between text-xs gap-2">
+      <div class="flex items-center space-x-2">
+        <span class="font-bold text-slate-400">WORKFLOW STATUS:</span>
+        <span id="workflowBadge" class="bg-amber-500 text-slate-950 px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider">STEP 1: DRAFTING (PARTS 1-5 & HIRARC)</span>
+      </div>
+      <div class="flex items-center space-x-3 text-[11px] text-slate-300">
+        <span><i class="fa-solid fa-cloud text-emerald-400"></i> Firebase Cloud: <strong id="cloudStatusTxt" class="text-emerald-400">Connecting...</strong></span>
+        <span><i class="fa-solid fa-file-pdf text-rose-400"></i> HIRARC Attached: <strong id="hirarcStatusTxt" class="text-rose-300">No</strong></span>
+        <span><i class="fa-solid fa-shield-halved text-indigo-400"></i> Gate Pass: <strong id="gatePassStatusTxt" class="text-slate-400">Pending</strong></span>
+      </div>
+    </div>
+  </div>
+
+  <main class="max-w-6xl mx-auto px-4 mt-6">
+
+    <!-- VIEW 1: PTW FORM -->
+    <div id="view-form" class="space-y-6">
+      
+      <!-- FORM CONTAINER -->
+      <form id="ptwForm" onsubmit="event.preventDefault();" class="bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
+        
+        <div class="p-6 space-y-6" id="printableArea">
+
+          <!-- PAGE 1 CONTAINER -->
+          <div class="space-y-4 page-break-after">
+            
+            <!-- HEADER FORM BAR -->
+            <div class="bg-slate-800 text-white p-4 rounded-xl flex justify-between items-center flex-wrap gap-2 border border-slate-700">
+              <div>
+                <div class="inline-block bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[10px] px-2 py-0.5 rounded font-semibold uppercase tracking-wider mb-1">Form EHS-FRM-917 Rev 2</div>
+                <h2 class="text-xl font-bold leading-tight">ARMSTRONG ELECTRONICS SDN BHD</h2>
+                <p class="text-slate-300 text-[11px]">7 & 8, Jalan I-Park 1/1, Kawasan Perindustrian I-Park, 81000 Bandar Indahpura, Kulai, Johor</p>
+                <p class="text-slate-400 text-[10px]">Main Line (607) 661 6996 | www.armstrongasia.com</p>
+              </div>
+              <div class="text-right">
+                <h3 class="text-lg font-bold text-emerald-400">PERMIT TO WORK</h3>
+                <span class="block text-[10px] font-bold text-rose-400 uppercase tracking-wide">VALID FOR DATE OF WORK ONLY</span>
+                <span id="ptwNoDisplay" class="font-mono text-base font-bold text-amber-400">AEM-PTW-2026-0001</span>
+              </div>
+            </div>
+
+            <!-- PART 1: REQUISITION -->
+            <section class="border-2 border-slate-200 rounded-xl p-4 bg-slate-50/50">
+              <h3 class="font-bold text-slate-900 text-sm mb-2 border-b pb-1 border-slate-200 flex items-center justify-between">
+                <span class="flex items-center gap-1.5">
+                  <span class="bg-slate-800 text-white text-[10px] w-5 h-5 rounded-full inline-flex items-center justify-center">1</span>
+                  PART 1 - REQUISITION (Fill Up by Work Requestor / Editable by EHS)
+                </span>
+                <span class="text-[10px] text-slate-500 font-normal">Filled by Requestor</span>
+              </h3>
+              
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
+                <div>
+                  <label class="block font-semibold text-slate-600 mb-0.5">Application Date</label>
+                  <input type="date" id="appDate" class="w-full rounded border-slate-300 p-1.5 border bg-white outline-none">
+                </div>
+                <div>
+                  <label class="block font-semibold text-slate-600 mb-0.5">Work Area</label>
+                  <input type="text" id="workArea" placeholder="e.g. Chemical Store / Production Line 2" class="w-full rounded border-slate-300 p-1.5 border bg-white outline-none">
+                </div>
+                <div>
+                  <label class="block font-semibold text-slate-600 mb-0.5">Work Requestor Name</label>
+                  <input type="text" id="applicantName" placeholder="AEM Work Requestor Name" class="w-full rounded border-slate-300 p-1.5 border bg-white outline-none">
+                </div>
+                <div>
+                  <label class="block font-semibold text-slate-600 mb-0.5">Contractor Company</label>
+                  <input type="text" id="contractorComp" placeholder="Contractor Company Name" class="w-full rounded border-slate-300 p-1.5 border bg-white outline-none">
+                </div>
+                <div>
+                  <label class="block font-semibold text-slate-600 mb-0.5">IC NO. / Passport NO.</label>
+                  <input type="text" id="applicantIc" placeholder="IC or Passport Number" class="w-full rounded border-slate-300 p-1.5 border bg-white outline-none">
+                </div>
+                <div>
+                  <label class="block font-semibold text-slate-600 mb-0.5">Tel NO.</label>
+                  <input type="text" id="applicantTel" placeholder="Contact Phone Number" class="w-full rounded border-slate-300 p-1.5 border bg-white outline-none">
+                </div>
+                <div class="col-span-1 md:col-span-2">
+                  <label class="block font-semibold text-slate-600 mb-0.5">Department</label>
+                  <select id="applicantDept" class="w-full rounded border-slate-300 p-1.5 border bg-white outline-none">
+                    <option value="">-- Select Department --</option>
+                    <option value="Facilities & Maintenance">Facilities & Maintenance</option>
+                    <option value="Production">Production</option>
+                    <option value="EHS">EHS</option>
+                    <option value="Engineering">Engineering</option>
+                    <option value="Quality Assurance">Quality Assurance</option>
+                  </select>
+                </div>
+
+                <!-- DUAL DATE PICKERS WITH FLEXIBLE PROPOSED END DATE -->
+                <div class="col-span-1 md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-2 bg-emerald-50/80 p-2.5 rounded-lg border border-emerald-200">
+                  <div>
+                    <label class="block font-bold text-emerald-900 mb-0.5">Proposed Work Start Date</label>
+                    <input type="date" id="workStartDate" onchange="validateWorkDates()" class="w-full rounded border-emerald-300 p-1.5 border bg-white font-medium">
+                  </div>
+                  <div>
+                    <label class="block font-bold text-emerald-900 mb-0.5">Proposed Work End Date</label>
+                    <input type="date" id="workEndDate" onchange="validateWorkDates()" class="w-full rounded border-emerald-300 p-1.5 border bg-white font-medium">
+                  </div>
+                  <div class="col-span-1 md:col-span-2 flex justify-between items-center text-[10px]">
+                    <span id="dateValidityBadge" class="font-bold text-emerald-800 bg-emerald-100 px-2.5 py-0.5 rounded-full border border-emerald-300">Validity: 1 Day Selected</span>
+                    <span class="text-slate-500 italic">Max 7 days per general PTW; EHS will review & cap Hot Work to 1 day</span>
+                  </div>
+                </div>
+
+                <!-- HIRARC ATTACHMENT / EHS EDITABLE SECTION -->
+                <div class="col-span-1 md:col-span-2 bg-slate-100 p-2.5 rounded-lg border border-slate-300 flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <label class="block font-bold text-slate-800 text-xs">HIRARC Assessment (Editable by EHS / Requestor)</label>
+                    <p class="text-[10px] text-slate-500">Attach, update, or remove associated HIRARC document reference</p>
+                  </div>
+                  <div class="flex items-center space-x-1.5">
+                    <input type="text" id="hirarcRefInput" placeholder="HIRARC Doc Ref No. / File Name" class="text-xs p-1.5 border rounded w-52 outline-none bg-white">
+                    <button type="button" onclick="attachHirarc()" id="btn-attach-hirarc" class="bg-slate-800 text-white text-xs px-2.5 py-1.5 rounded font-medium hover:bg-slate-700">Attach</button>
+                    <button type="button" onclick="removeHirarc()" id="btn-remove-hirarc" class="bg-rose-600 text-white text-xs px-2.5 py-1.5 rounded font-medium hover:bg-rose-500">Remove</button>
+                  </div>
+                </div>
+
+                <div class="col-span-1 md:col-span-2">
+                  <label class="block font-semibold text-slate-600 mb-0.5">Brief Work Description</label>
+                  <textarea id="workDesc" rows="1" placeholder="Detail the scope of work..." class="w-full rounded border-slate-300 p-1.5 border bg-white outline-none"></textarea>
+                </div>
+                <div class="col-span-1 md:col-span-2">
+                  <label class="block font-semibold text-slate-600 mb-0.5">NO. of Workers (Pls provide name)</label>
+                  <textarea id="workerList" rows="1" placeholder="Worker names & IC numbers..." class="w-full rounded border-slate-300 p-1.5 border bg-white outline-none"></textarea>
+                </div>
+              </div>
+            </section>
+
+            <!-- PART 2: HAZARDOUS ACTIVITIES -->
+            <section class="border-2 border-slate-200 rounded-xl p-3 bg-slate-50/50">
+              <h3 class="font-bold text-slate-900 text-xs mb-2 border-b pb-1 border-slate-200 flex items-center gap-1.5">
+                <span class="bg-slate-800 text-white text-[10px] w-5 h-5 rounded-full inline-flex items-center justify-center">2</span>
+                PART 2 - HAZARDOUS ACTIVITIES (Fill Up by Work Requestor & Contractor)
+              </h3>
+              <div class="grid grid-cols-2 md:grid-cols-3 gap-1.5 text-[11px]">
+                <label class="flex items-center space-x-1.5 bg-white p-1.5 rounded border border-slate-200">
+                  <input type="checkbox" name="hazard_act" value="Use of hazardous chemical" class="rounded text-emerald-600">
+                  <span>Use of hazardous chemical</span>
+                </label>
+                <label class="flex items-center space-x-1.5 bg-white p-1.5 rounded border border-slate-200">
+                  <input type="checkbox" name="hazard_act" value="Machine Service/Maintenance" class="rounded text-emerald-600">
+                  <span>Machine Service/Maintenance</span>
+                </label>
+                <label class="flex items-center space-x-1.5 bg-white p-1.5 rounded border border-slate-200">
+                  <input type="checkbox" name="hazard_act" value="Working at Height" class="rounded text-emerald-600">
+                  <span>Working at Height</span>
+                </label>
+                <label class="flex items-center space-x-1.5 bg-white p-1.5 rounded border border-slate-200">
+                  <input type="checkbox" name="hazard_act" value="Confined space entry" class="rounded text-emerald-600">
+                  <span>Confined space entry</span>
+                </label>
+                <label class="flex items-center space-x-1.5 bg-white p-1.5 rounded border border-slate-200">
+                  <input type="checkbox" name="hazard_act" value="Machine Set Up/Relocation" class="rounded text-emerald-600">
+                  <span>Machine Set Up/Relocation</span>
+                </label>
+                <label class="flex items-center space-x-1.5 bg-white p-1.5 rounded border border-slate-200">
+                  <input type="checkbox" name="hazard_act" value="Lifting work" class="rounded text-emerald-600">
+                  <span>Lifting work</span>
+                </label>
+                <label class="flex items-center space-x-1.5 bg-white p-1.5 rounded border border-slate-200">
+                  <input type="checkbox" name="hazard_act" value="Electrical Inspection/Maintenance" class="rounded text-emerald-600">
+                  <span>Electrical Inspection/Maintenance</span>
+                </label>
+                <label class="flex items-center space-x-1.5 bg-white p-1.5 rounded border border-slate-200">
+                  <input type="checkbox" name="hazard_act" value="Drilling/Grinding/Cutting" onchange="validateWorkDates()" class="rounded text-emerald-600">
+                  <span>Drilling/Grinding/Cutting</span>
+                </label>
+                <label class="flex items-center space-x-1.5 bg-white p-1.5 rounded border border-slate-200">
+                  <input type="checkbox" name="hazard_act" value="Working near high voltage power lines" class="rounded text-emerald-600">
+                  <span>Working near high voltage power lines</span>
+                </label>
+                <label class="flex items-center space-x-1.5 bg-white p-1.5 rounded border border-slate-200">
+                  <input type="checkbox" name="hazard_act" value="Trenching/excavation/demolition," class="rounded text-emerald-600">
+                  <span>Trenching/excavation/demolition,</span>
+                </label>
+                <label class="flex items-center space-x-1.5 bg-white p-1.5 rounded border border-slate-200">
+                  <input type="checkbox" name="hazard_act" value="Hot work (Welding/Grinding/Cutting)" onchange="validateWorkDates()" class="rounded text-emerald-600">
+                  <span>Hot work (Welding/Grinding/Cutting)</span>
+                </label>
+                <label class="flex items-center space-x-1.5 bg-white p-1.5 rounded border border-slate-200">
+                  <input type="checkbox" name="hazard_act" value="Gas/Pipeline breaking" class="rounded text-emerald-600">
+                  <span>Gas/Pipeline breaking</span>
+                </label>
+                <label class="flex items-center space-x-1.5 bg-white p-1.5 rounded border border-slate-200">
+                  <input type="checkbox" name="hazard_act" value="Blasting" class="rounded text-emerald-600">
+                  <span>Blasting</span>
+                </label>
+                <label class="flex items-center space-x-1.5 bg-white p-1.5 rounded border border-slate-200">
+                  <input type="checkbox" name="hazard_act" value="Lifting equipments Service/Maintenance" class="rounded text-emerald-600">
+                  <span>Lifting equipments Service/Maintenance</span>
+                </label>
+
+                <!-- DYNAMIC OTHER INPUT FOR PART 2 -->
+                <div class="bg-white p-1.5 rounded border border-slate-200 flex items-center space-x-1.5 col-span-2 md:col-span-1">
+                  <input type="checkbox" id="chk_act_other" name="hazard_act" value="Other:" onchange="toggleOtherInput('chk_act_other', 'txt_act_other')" onclick="toggleOtherInput('chk_act_other', 'txt_act_other')" class="rounded text-emerald-600">
+                  <span class="text-slate-700 whitespace-nowrap">Other:</span>
+                  <input type="text" id="txt_act_other" disabled placeholder="Specified activity..." class="w-full p-1 border border-slate-300 rounded bg-slate-100 focus:bg-white outline-none text-xs">
+                </div>
+              </div>
+            </section>
+
+            <!-- PART 3: HAZARDS -->
+            <section class="border-2 border-slate-200 rounded-xl p-3 bg-slate-50/50">
+              <h3 class="font-bold text-slate-900 text-xs mb-2 border-b pb-1 border-slate-200 flex items-center gap-1.5">
+                <span class="bg-slate-800 text-white text-[10px] w-5 h-5 rounded-full inline-flex items-center justify-center">3</span>
+                PART 3 - HAZARDS (Fill Up by Work Requestor & Contractor)
+              </h3>
+              <div class="grid grid-cols-2 md:grid-cols-3 gap-1.5 text-[11px]">
+                <label class="flex items-center space-x-1.5 bg-white p-1.5 rounded border border-slate-200">
+                  <input type="checkbox" name="hazard_env" value="Toxic/Corrosive Chemical" class="rounded text-emerald-600">
+                  <span>Toxic/Corrosive Chemical</span>
+                </label>
+                <label class="flex items-center space-x-1.5 bg-white p-1.5 rounded border border-slate-200">
+                  <input type="checkbox" name="hazard_env" value="Electrical Hazards" class="rounded text-emerald-600">
+                  <span>Electrical Hazards</span>
+                </label>
+                <label class="flex items-center space-x-1.5 bg-white p-1.5 rounded border border-slate-200">
+                  <input type="checkbox" name="hazard_env" value="Vehicle Movement" class="rounded text-emerald-600">
+                  <span>Vehicle Movement</span>
+                </label>
+                <label class="flex items-center space-x-1.5 bg-white p-1.5 rounded border border-slate-200">
+                  <input type="checkbox" name="hazard_env" value="Flammable Chemical" class="rounded text-emerald-600">
+                  <span>Flammable Chemical</span>
+                </label>
+                <label class="flex items-center space-x-1.5 bg-white p-1.5 rounded border border-slate-200">
+                  <input type="checkbox" name="hazard_env" value="Heat Spark" class="rounded text-emerald-600">
+                  <span>Heat Spark</span>
+                </label>
+                <label class="flex items-center space-x-1.5 bg-white p-1.5 rounded border border-slate-200">
+                  <input type="checkbox" name="hazard_env" value="Heavy Object/Load" class="rounded text-emerald-600">
+                  <span>Heavy Object/Load</span>
+                </label>
+                <label class="flex items-center space-x-1.5 bg-white p-1.5 rounded border border-slate-200">
+                  <input type="checkbox" name="hazard_env" value="Confined Space" class="rounded text-emerald-600">
+                  <span>Confined Space</span>
+                </label>
+                <label class="flex items-center space-x-1.5 bg-white p-1.5 rounded border border-slate-200">
+                  <input type="checkbox" name="hazard_env" value="Lifting Equipments" class="rounded text-emerald-600">
+                  <span>Lifting Equipments</span>
+                </label>
+                <label class="flex items-center space-x-1.5 bg-white p-1.5 rounded border border-slate-200">
+                  <input type="checkbox" name="hazard_env" value="Open edge/unguarded working at height area" class="rounded text-emerald-600">
+                  <span>Open edge/unguarded working at height area</span>
+                </label>
+                <label class="flex items-center space-x-1.5 bg-white p-1.5 rounded border border-slate-200">
+                  <input type="checkbox" name="hazard_env" value="Explosion/Fire" class="rounded text-emerald-600">
+                  <span>Explosion/Fire</span>
+                </label>
+                <label class="flex items-center space-x-1.5 bg-white p-1.5 rounded border border-slate-200">
+                  <input type="checkbox" name="hazard_env" value="Rotating/Moving Equipments" class="rounded text-emerald-600">
+                  <span>Rotating/Moving Equipments</span>
+                </label>
+
+                <!-- DYNAMIC OTHER INPUT FOR PART 3 -->
+                <div class="bg-white p-1.5 rounded border border-slate-200 flex items-center space-x-1.5 col-span-2 md:col-span-1">
+                  <input type="checkbox" id="chk_haz_other" name="hazard_env" value="Other:" onchange="toggleOtherInput('chk_haz_other', 'txt_haz_other')" onclick="toggleOtherInput('chk_haz_other', 'txt_haz_other')" class="rounded text-emerald-600">
+                  <span class="text-slate-700 whitespace-nowrap">Other:</span>
+                  <input type="text" id="txt_haz_other" disabled placeholder="Specified hazard..." class="w-full p-1 border border-slate-300 rounded bg-slate-100 focus:bg-white outline-none text-xs">
+                </div>
+              </div>
+            </section>
+
+            <!-- PART 4: WORKSITE PREPARATIONS & PRECAUTIONS -->
+            <section class="border-2 border-slate-200 rounded-xl p-3 bg-slate-50/50">
+              <h3 class="font-bold text-slate-900 text-xs mb-2 border-b pb-1 border-slate-200 flex items-center gap-1.5">
+                <span class="bg-slate-800 text-white text-[10px] w-5 h-5 rounded-full inline-flex items-center justify-center">4</span>
+                PART 4 - WORKSITE PREPARATIONS & PRECAUTIONS (Fill Up by Work Requestor & Contractor)
+              </h3>
+              <div class="grid grid-cols-2 md:grid-cols-3 gap-1.5 text-[11px]">
+                <label class="flex items-center space-x-1.5 bg-white p-1.5 rounded border border-slate-200">
+                  <input type="checkbox" name="prep" value="Barricade Area with Warning Sign" class="rounded text-emerald-600">
+                  <span>Barricade Area with Warning Sign</span>
+                </label>
+                <label class="flex items-center space-x-1.5 bg-white p-1.5 rounded border border-slate-200">
+                  <input type="checkbox" name="prep" value="LOTO" class="rounded text-emerald-600">
+                  <span>LOTO</span>
+                </label>
+                <label class="flex items-center space-x-1.5 bg-white p-1.5 rounded border border-slate-200">
+                  <input type="checkbox" name="prep" value="Confined Space Gas testing" class="rounded text-emerald-600">
+                  <span>Confined Space Gas testing</span>
+                </label>
+                <label class="flex items-center space-x-1.5 bg-white p-1.5 rounded border border-slate-200">
+                  <input type="checkbox" name="prep" value="Inform Workers In Other Area" class="rounded text-emerald-600">
+                  <span>Inform Workers In Other Area</span>
+                </label>
+                <label class="flex items-center space-x-1.5 bg-white p-1.5 rounded border border-slate-200">
+                  <input type="checkbox" name="prep" value="De-energized/ Depressurized/Liquid Purging" class="rounded text-emerald-600">
+                  <span>De-energized/ Depressurized/Liquid Purging</span>
+                </label>
+                <label class="flex items-center space-x-1.5 bg-white p-1.5 rounded border border-slate-200">
+                  <input type="checkbox" name="prep" value="Conduct by Competent Person" class="rounded text-emerald-600">
+                  <span>Conduct by Competent Person</span>
+                </label>
+                <label class="flex items-center space-x-1.5 bg-white p-1.5 rounded border border-slate-200">
+                  <input type="checkbox" name="prep" value="Secure Tools From Falling" class="rounded text-emerald-600">
+                  <span>Secure Tools From Falling</span>
+                </label>
+                <label class="flex items-center space-x-1.5 bg-white p-1.5 rounded border border-slate-200">
+                  <input type="checkbox" name="prep" value="Equipment / energy Isolated" class="rounded text-emerald-600">
+                  <span>Equipment / energy Isolated</span>
+                </label>
+                <label class="flex items-center space-x-1.5 bg-white p-1.5 rounded border border-slate-200">
+                  <input type="checkbox" name="prep" value="Remove Combustible Materials " class="rounded text-emerald-600">
+                  <span>Remove Combustible Materials</span>
+                </label>
+                <label class="flex items-center space-x-1.5 bg-white p-1.5 rounded border border-slate-200">
+                  <input type="checkbox" name="prep" value="Buddy System" class="rounded text-emerald-600">
+                  <span>Buddy System</span>
+                </label>
+                <label class="flex items-center space-x-1.5 bg-white p-1.5 rounded border border-slate-200">
+                  <input type="checkbox" name="prep" value="Pipeline disconnected/ Close valve" class="rounded text-emerald-600">
+                  <span>Pipeline disconnected/ Close valve</span>
+                </label>
+
+                <!-- DYNAMIC OTHER INPUT FOR PART 4 -->
+                <div class="bg-white p-1.5 rounded border border-slate-200 flex items-center space-x-1.5 col-span-2 md:col-span-1">
+                  <input type="checkbox" id="chk_prep_other" name="prep" value="Other:" onchange="toggleOtherInput('chk_prep_other', 'txt_prep_other')" onclick="toggleOtherInput('chk_prep_other', 'txt_prep_other')" class="rounded text-emerald-600">
+                  <span class="text-slate-700 whitespace-nowrap">Other:</span>
+                  <input type="text" id="txt_prep_other" disabled placeholder="Specified precaution..." class="w-full p-1 border border-slate-300 rounded bg-slate-100 focus:bg-white outline-none text-xs">
+                </div>
+              </div>
+            </section>
+
+            <!-- PART 5: PERSONAL PROTECTIVE EQUIPMENT -->
+            <section class="border-2 border-slate-200 rounded-xl p-3 bg-slate-50/50">
+              <h3 class="font-bold text-slate-900 text-xs mb-2 border-b pb-1 border-slate-200 flex items-center gap-1.5">
+                <span class="bg-slate-800 text-white text-[10px] w-5 h-5 rounded-full inline-flex items-center justify-center">5</span>
+                PART 5 - PERSONAL PROTECTIVE EQUIPMENT (Fill up by Work Requestor & Contractor)
+              </h3>
+              <div class="grid grid-cols-2 md:grid-cols-3 gap-1.5 text-[11px]">
+                <label class="flex items-center space-x-1.5 bg-white p-1.5 rounded border border-slate-200">
+                  <input type="checkbox" name="ppe" value="Chemical Resistant Suit" class="rounded text-emerald-600">
+                  <span>Chemical Resistant Suit</span>
+                </label>
+                <label class="flex items-center space-x-1.5 bg-white p-1.5 rounded border border-slate-200">
+                  <input type="checkbox" name="ppe" value="Full Body Harness" class="rounded text-emerald-600">
+                  <span>Full Body Harness</span>
+                </label>
+                <label class="flex items-center space-x-1.5 bg-white p-1.5 rounded border border-slate-200">
+                  <input type="checkbox" name="ppe" value="Welding Helmet" class="rounded text-emerald-600">
+                  <span>Welding Helmet</span>
+                </label>
+
+                <label class="flex items-center space-x-1.5 bg-white p-1.5 rounded border border-slate-200">
+                  <input type="checkbox" name="ppe" value="Chemical Resistant Gloves" class="rounded text-emerald-600">
+                  <span>Chemical Resistant Gloves</span>
+                </label>
+                <label class="flex items-center space-x-1.5 bg-white p-1.5 rounded border border-slate-200">
+                  <input type="checkbox" name="ppe" value="Safety Helmet" class="rounded text-emerald-600">
+                  <span>Safety Helmet</span>
+                </label>
+                <label class="flex items-center space-x-1.5 bg-white p-1.5 rounded border border-slate-200">
+                  <input type="checkbox" name="ppe" value="Welding Gloves" class="rounded text-emerald-600">
+                  <span>Welding Gloves</span>
+                </label>
+
+                <label class="flex items-center space-x-1.5 bg-white p-1.5 rounded border border-slate-200">
+                  <input type="checkbox" name="ppe" value="Safety Glasses/Goggles" class="rounded text-emerald-600">
+                  <span>Safety Glasses/Goggles</span>
+                </label>
+                <label class="flex items-center space-x-1.5 bg-white p-1.5 rounded border border-slate-200">
+                  <input type="checkbox" name="ppe" value="Safety Shoes" class="rounded text-emerald-600">
+                  <span>Safety Shoes</span>
+                </label>
+                <label class="flex items-center space-x-1.5 bg-white p-1.5 rounded border border-slate-200">
+                  <input type="checkbox" name="ppe" value="Leather Apron" class="rounded text-emerald-600">
+                  <span>Leather Apron</span>
+                </label>
+
+                <label class="flex items-center space-x-1.5 bg-white p-1.5 rounded border border-slate-200">
+                  <input type="checkbox" name="ppe" value="Face Mask" class="rounded text-emerald-600">
+                  <span>Face Mask</span>
+                </label>
+                <label class="flex items-center space-x-1.5 bg-white p-1.5 rounded border border-slate-200">
+                  <input type="checkbox" name="ppe" value="Coverall" class="rounded text-emerald-600">
+                  <span>Coverall</span>
+                </label>
+                <label class="flex items-center space-x-1.5 bg-white p-1.5 rounded border border-slate-200">
+                  <input type="checkbox" name="ppe" value="Heat Resistance Gloves" class="rounded text-emerald-600">
+                  <span>Heat Resistance Gloves</span>
+                </label>
+                
+                <!-- RESPIRATOR INPUT -->
+                <div class="bg-white p-1.5 rounded border border-slate-200 flex items-center space-x-1.5">
+                  <input type="checkbox" id="chk_ppe_resp" name="ppe" value="Respirator:" onchange="toggleOtherInput('chk_ppe_resp', 'txt_ppe_resp')" onclick="toggleOtherInput('chk_ppe_resp', 'txt_ppe_resp')" class="rounded text-emerald-600">
+                  <span class="text-slate-700 whitespace-nowrap">Respirator:</span>
+                  <input type="text" id="txt_ppe_resp" disabled placeholder="Specification..." class="w-full p-1 border border-slate-300 rounded bg-slate-100 focus:bg-white outline-none text-xs">
+                </div>
+
+                <label class="flex items-center space-x-1.5 bg-white p-1.5 rounded border border-slate-200">
+                  <input type="checkbox" name="ppe" value="Ear Muffs / Ear Plugs " class="rounded text-emerald-600">
+                  <span>Ear Muffs / Ear Plugs</span>
+                </label>
+
+                <!-- DYNAMIC OTHER INPUT FOR PART 5 -->
+                <div class="bg-white p-1.5 rounded border border-slate-200 flex items-center space-x-1.5">
+                  <input type="checkbox" id="chk_ppe_other" name="ppe" value="Other:" onchange="toggleOtherInput('chk_ppe_other', 'txt_ppe_other')" onclick="toggleOtherInput('chk_ppe_other', 'txt_ppe_other')" class="rounded text-emerald-600">
+                  <span class="text-slate-700 whitespace-nowrap">Other:</span>
+                  <input type="text" id="txt_ppe_other" disabled placeholder="Specified PPE..." class="w-full p-1 border border-slate-300 rounded bg-slate-100 focus:bg-white outline-none text-xs">
+                </div>
+              </div>
+            </section>
+          </div>
+
+          <!-- PAGE 2 CONTAINER -->
+          <div class="space-y-4">
+            
+            <!-- PART 6: HOT WORK ONLY -->
+            <section class="border-2 border-rose-300 rounded-xl p-3 bg-rose-50/30">
+              <div class="flex items-center justify-between mb-1.5 border-b border-rose-200 pb-1">
+                <h3 class="font-bold text-rose-900 text-xs flex items-center gap-1.5">
+                  <span class="bg-rose-600 text-white text-[10px] w-5 h-5 rounded-full inline-flex items-center justify-center">6</span>
+                  PART 6 - HOT WORK ONLY (Fill Up by EHS Personnel)
+                </h3>
+                <span class="text-[10px] bg-rose-200 text-rose-900 font-bold px-2 py-0.5 rounded">VALID FOR 1 DAY ONLY</span>
+              </div>
+              
+              <div class="space-y-2 text-xs">
+                <div class="flex flex-wrap items-center gap-3 bg-white p-2 rounded border border-rose-200">
+                  <span class="font-semibold text-slate-700">Is fire watcher required?</span>
+                  <label class="flex items-center space-x-1"><input type="radio" name="watcherRequired" value="YES" class="text-rose-600"> <span>YES</span></label>
+                  <label class="flex items-center space-x-1"><input type="radio" name="watcherRequired" value="NO" class="text-rose-600"> <span>NO</span></label>
+                  <div class="flex-1 min-w-[150px] flex items-center gap-1.5">
+                    <span class="font-semibold text-slate-600">Name:</span>
+                    <input type="text" id="watcherName" placeholder="Fire Watcher Name" class="w-full border rounded p-1 outline-none">
+                  </div>
+                </div>
+
+                <div class="bg-amber-100/70 border border-amber-300 p-2 rounded text-[10px] text-amber-900 font-medium italic">
+                  "The location where this work is to be done has been examined, necessary precautions taken & permission is granted for this work."
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-1.5 text-[11px]">
+                  <label class="flex items-center space-x-1.5 bg-white p-1.5 rounded border border-rose-200">
+                    <input type="checkbox" name="hotwork_check" value="No flammable items within 10 meters (35 feet)" class="rounded text-rose-600">
+                    <span>No flammable items within 10 meters (35 feet)</span>
+                  </label>
+                  <label class="flex items-center space-x-1.5 bg-white p-1.5 rounded border border-rose-200">
+                    <input type="checkbox" name="hotwork_check" value="Compressed gas cylinders are secured" class="rounded text-rose-600">
+                    <span>Compressed gas cylinders are secured</span>
+                  </label>
+                  <label class="flex items-center space-x-1.5 bg-white p-1.5 rounded border border-rose-200">
+                    <input type="checkbox" name="hotwork_check" value="Conduct Fire Watch after work done (at 1 hour and 4 hour)" class="rounded text-rose-600">
+                    <span>Conduct Fire Watch after work done (at 1 hour and 4 hour)</span>
+                  </label>
+                  <label class="flex items-center space-x-1.5 bg-white p-1.5 rounded border border-rose-200">
+                    <input type="checkbox" name="hotwork_check" value="Work Area with Sufficient Ventilation" class="rounded text-rose-600">
+                    <span>Work Area with Sufficient Ventilation</span>
+                  </label>
+                  <label class="flex items-center space-x-1.5 bg-white p-1.5 rounded border border-rose-200">
+                    <input type="checkbox" name="hotwork_check" value="Standby fire extinguisher available at work site" class="rounded text-rose-600">
+                    <span>Standby fire extinguisher available at work site</span>
+                  </label>
+                  <label class="flex items-center space-x-1.5 bg-white p-1.5 rounded border border-rose-200">
+                    <input type="checkbox" name="hotwork_check" value='Area barricated / Signed as "HOT WORK - KEEP FLAMMABLE LIQUIDS/MATERIALS AWAY"' class="rounded text-rose-600">
+                    <span>Area barricated / Signed as "HOT WORK - KEEP FLAMMABLE LIQUIDS/MATERIALS AWAY"</span>
+                  </label>
+                  <label class="flex items-center space-x-1.5 bg-white p-1.5 rounded border border-rose-200 col-span-1 md:col-span-2">
+                    <input type="checkbox" name="hotwork_check" value="Additional fire extinguisher required" class="rounded text-rose-600">
+                    <span>Additional fire extinguisher required</span>
+                  </label>
+                </div>
+              </div>
+            </section>
+
+            <!-- PART 7: POTENTIAL ENVIRONMENTAL CONTROL MEASURE(S) REQUIRED -->
+            <section class="border-2 border-emerald-300 rounded-xl p-3 bg-emerald-50/30">
+              <h3 class="font-bold text-emerald-900 text-xs mb-2 border-b border-emerald-200 pb-1 flex items-center gap-1.5">
+                <span class="bg-emerald-700 text-white text-[10px] w-5 h-5 rounded-full inline-flex items-center justify-center">7</span>
+                PART 7 - POTENTIAL ENVIRONMENTAL CONTROL MEASURE(S) REQUIRED (Fill Up by EHS Personnel)
+              </h3>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-1.5 text-[11px]">
+                <label class="flex items-center space-x-1.5 bg-white p-1.5 rounded border border-emerald-200">
+                  <input type="checkbox" name="env_check" value="Use of LEV and Air Pollution Control System" class="rounded text-emerald-600">
+                  <span>Use of LEV and Air Pollution Control System</span>
+                </label>
+                <label class="flex items-center space-x-1.5 bg-white p-1.5 rounded border border-emerald-200">
+                  <input type="checkbox" name="env_check" value="Segregation of recyclable waste" class="rounded text-emerald-600">
+                  <span>Segregation of recyclable waste</span>
+                </label>
+                <label class="flex items-center space-x-1.5 bg-white p-1.5 rounded border border-emerald-200">
+                  <input type="checkbox" name="env_check" value="Chemical storage with secondary containment" class="rounded text-emerald-600">
+                  <span>Chemical storage with secondary containment</span>
+                </label>
+                <label class="flex items-center space-x-1.5 bg-white p-1.5 rounded border border-emerald-200">
+                  <input type="checkbox" name="env_check" value="Vehicle/machine without oil leak or black smoke" class="rounded text-emerald-600">
+                  <span>Vehicle/machine without oil leak or black smoke</span>
+                </label>
+                <label class="flex items-center space-x-1.5 bg-white p-1.5 rounded border border-emerald-200">
+                  <input type="checkbox" name="env_check" value="Proper disposal of general waste and scheduled waste " class="rounded text-emerald-600">
+                  <span>Proper disposal of general waste and scheduled waste </span>
+                </label>
+                <label class="flex items-center space-x-1.5 bg-white p-1.5 rounded border border-emerald-200">
+                  <input type="checkbox" name="env_check" value="Chemical Spill Kit Standby" class="rounded text-emerald-600">
+                  <span>Chemical Spill Kit Standby</span>
+                </label>
+                
+                <!-- DYNAMIC OTHER INPUT FOR PART 7 -->
+                <div class="bg-white p-1.5 rounded border border-emerald-200 flex items-center space-x-1.5 col-span-1 md:col-span-2">
+                  <input type="checkbox" id="chk_env_other" name="env_check" value="Others:" onchange="toggleOtherInput('chk_env_other', 'txt_env_other')" onclick="toggleOtherInput('chk_env_other', 'txt_env_other')" class="rounded text-emerald-600">
+                  <span class="text-slate-700 whitespace-nowrap">Others:</span>
+                  <input type="text" id="txt_env_other" disabled placeholder="Type specified environmental control measure..." class="w-full p-1 border border-slate-300 rounded bg-slate-100 focus:bg-white outline-none text-xs">
+                </div>
+              </div>
+            </section>
+
+            <!-- PART 8: ACKNOWLEDGEMENT & AUTHORIZATION -->
+            <section class="border-2 border-slate-300 rounded-xl p-3 bg-slate-50">
+              <h3 class="font-bold text-slate-900 text-xs mb-1.5 border-b pb-1 border-slate-200 flex items-center justify-between">
+                <span class="flex items-center gap-1.5">
+                  <span class="bg-slate-800 text-white text-[10px] w-5 h-5 rounded-full inline-flex items-center justify-center">8</span>
+                  PART 8 - PERMIT ACKNOWLEDGEMENT & AUTHORIZATION (4-Party Approvals)
+                </span>
+                <span class="text-[10px] text-slate-500 font-normal">Requires 4 Signatures</span>
+              </h3>
+              <p class="text-[10px] text-slate-700 mb-2 leading-tight">
+                I/We have read & fully understand the terms & conditions as stated in the procedure AEM-EHS-SOP-011 (Permit to Work Including Hot Work Permit) and hereby agree to abide strictly & fulfill the rules & regulations as set by Armstrong Electronics Sdn Bhd (AEM) pertaining to the above application.
+              </p>
+
+              <!-- 4 SIGN-OFF BOXES -->
+              <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
+                <!-- Contractor -->
+                <div class="bg-white p-2 rounded border border-slate-200 text-center">
+                  <p class="text-[9px] font-bold text-emerald-700 uppercase">1. CONTRACTOR</p>
+                  <div class="border border-dashed border-slate-300 rounded bg-slate-50 h-16 flex items-center justify-center my-1" id="box-sig-contractor">
+                    <span class="text-[10px] text-slate-400">Pending</span>
+                  </div>
+                  <button onclick="openSignatureModal('contractor')" class="no-print w-full bg-slate-800 text-white text-[10px] py-1 rounded hover:bg-slate-700">Sign as Contractor</button>
+                  <p id="time-contractor" class="text-[9px] text-slate-400 mt-0.5">Not Signed</p>
+                </div>
+
+                <!-- Requestor -->
+                <div class="bg-white p-2 rounded border border-slate-200 text-center">
+                  <p class="text-[9px] font-bold text-emerald-700 uppercase">2. WORK REQUESTOR</p>
+                  <div class="border border-dashed border-slate-300 rounded bg-slate-50 h-16 flex items-center justify-center my-1" id="box-sig-requestor">
+                    <span class="text-[10px] text-slate-400">Pending</span>
+                  </div>
+                  <button onclick="openSignatureModal('requestor')" class="no-print w-full bg-slate-800 text-white text-[10px] py-1 rounded hover:bg-slate-700">Sign as Requestor</button>
+                  <p id="time-requestor" class="text-[9px] text-slate-400 mt-0.5">Not Signed</p>
+                </div>
+
+                <!-- EHS -->
+                <div class="bg-white p-2 rounded border border-slate-200 text-center">
+                  <p class="text-[9px] font-bold text-emerald-700 uppercase">3. EHS PERSONNEL</p>
+                  <div class="border border-dashed border-slate-300 rounded bg-slate-50 h-16 flex items-center justify-center my-1" id="box-sig-ehs">
+                    <span class="text-[10px] text-slate-400">Pending</span>
+                  </div>
+                  <button onclick="openSignatureModal('ehs')" class="no-print w-full bg-slate-800 text-white text-[10px] py-1 rounded hover:bg-slate-700">Sign as EHS</button>
+                  <p id="time-ehs" class="text-[9px] text-slate-400 mt-0.5">Not Signed</p>
+                </div>
+
+                <!-- Owner -->
+                <div class="bg-white p-2 rounded border border-slate-200 text-center">
+                  <p class="text-[9px] font-bold text-emerald-700 uppercase">4. AREA OWNER</p>
+                  <div class="border border-dashed border-slate-300 rounded bg-slate-50 h-16 flex items-center justify-center my-1" id="box-sig-owner">
+                    <span class="text-[10px] text-slate-400">Pending</span>
+                  </div>
+                  <button onclick="openSignatureModal('owner')" class="no-print w-full bg-slate-800 text-white text-[10px] py-1 rounded hover:bg-slate-700">Sign as Owner</button>
+                  <p id="time-owner" class="text-[9px] text-slate-400 mt-0.5">Not Signed</p>
+                </div>
+              </div>
+            </section>
+
+            <!-- SECURITY GATE CHECKPOINT VERIFICATION -->
+            <section class="border-2 border-indigo-200 rounded-xl p-3 bg-indigo-50/30">
+              <div class="flex items-center justify-between mb-1">
+                <h3 class="font-bold text-indigo-900 text-xs flex items-center gap-1.5">
+                  <i class="fa-solid fa-shield-halved text-indigo-600"></i>
+                  SECURITY GATE CHECKPOINT VERIFICATION
+                </h3>
+                <span id="gateStatusBadge" class="bg-slate-200 text-slate-700 text-[10px] font-bold px-2 py-0.5 rounded-full">GATE VERIFICATION PENDING</span>
+              </div>
+              
+              <div class="flex items-center justify-between bg-white p-2 rounded border border-indigo-200">
+                <div>
+                  <p class="text-xs font-bold text-indigo-950">Contractor Onboard Hardcopy Verification at Guard House</p>
+                  <p id="securityCheckDetails" class="text-[10px] text-slate-500">Contractor must present printed PTW hardcopy upon arrival.</p>
+                </div>
+                <button onclick="verifySecurityEntry()" id="btn-security-verify" class="no-print bg-indigo-600 text-white text-[10px] px-3 py-1.5 rounded font-bold hover:bg-indigo-700">Verify Hardcopy & Log Gate Pass</button>
+              </div>
+            </section>
+
+            <!-- PART 9: CLOSURE -->
+            <section class="border-2 border-slate-300 rounded-xl p-3 bg-slate-100">
+              <h3 class="font-bold text-slate-900 text-xs mb-1 border-b pb-1 border-slate-300 flex items-center gap-1.5">
+                <span class="bg-slate-800 text-white text-[10px] w-5 h-5 rounded-full inline-flex items-center justify-center">9</span>
+                PART 9 - WORK CLOSURE & SITE CLEANLINESS VERIFICATION
+              </h3>
+              <p class="text-[10px] text-slate-600 mb-2">I/We have verified the work has been completed & clearance done.</p>
+
+              <div class="grid grid-cols-2 gap-3">
+                <!-- Closure Contractor -->
+                <div class="bg-white p-2 rounded border border-slate-200 text-center">
+                  <h4 class="font-bold text-[10px] uppercase text-slate-700">1. CONTRACTOR COMPLETION</h4>
+                  <div class="border border-dashed border-slate-300 rounded bg-slate-50 h-14 flex items-center justify-center my-1" id="box-sig-close-contractor">
+                    <span class="text-[10px] text-slate-400">Pending</span>
+                  </div>
+                  <button onclick="openSignatureModal('close-contractor')" class="no-print w-full bg-slate-800 text-white text-[10px] py-1 rounded hover:bg-slate-700">Sign Contractor Completion</button>
+                  <p id="time-close-contractor" class="text-[9px] text-slate-400 mt-0.5">Not Completed</p>
+                </div>
+
+                <!-- Closure Requestor -->
+                <div class="bg-white p-2 rounded border border-slate-200 text-center">
+                  <h4 class="font-bold text-[10px] uppercase text-slate-700">2. WORK REQUESTOR CLEANLINESS VERIFICATION</h4>
+                  <div class="border border-dashed border-slate-300 rounded bg-slate-50 h-14 flex items-center justify-center my-1" id="box-sig-close-requestor">
+                    <span class="text-[10px] text-slate-400">Pending</span>
+                  </div>
+                  <button onclick="openSignatureModal('close-requestor')" class="no-print w-full bg-slate-800 text-white text-[10px] py-1 rounded hover:bg-slate-700">Verify & Close PTW</button>
+                  <p id="time-close-requestor" class="text-[9px] text-slate-400 mt-0.5">Not Completed</p>
+                </div>
+              </div>
+
+              <div class="flex justify-between items-center text-[9px] text-slate-500 mt-2 border-t pt-1">
+                <span>Form Ref: AEM-EHS-FRM-917 Rev 2</span>
+                <span>Effective Date: 30/10/2026</span>
+              </div>
+            </section>
+          </div>
+
+        </div>
+
+        <!-- WORKFLOW PIPELINE ACTION FOOTER -->
+        <div class="bg-slate-900 px-6 py-4 flex flex-wrap justify-between items-center gap-3 no-print">
+          <div class="flex items-center space-x-2">
+            <!-- Step 1 Submission -->
+            <button onclick="submitToEhs()" id="btn-submit-ehs" class="bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold px-4 py-2.5 rounded-lg transition flex items-center gap-1.5">
+              <i class="fa-solid fa-paper-plane"></i> 1. Submit PTW & HIRARC to EHS
+            </button>
+            
+            <!-- Step 2 EHS Routing -->
+            <button onclick="routeForApprovals()" id="btn-route-approval" class="bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold px-4 py-2.5 rounded-lg transition flex items-center gap-1.5">
+              <i class="fa-solid fa-route"></i> 2. EHS Route Back for Approvals
+            </button>
+
+            <!-- Print Hardcopy -->
+            <button onclick="window.print()" class="bg-slate-700 hover:bg-slate-600 text-white text-xs font-bold px-4 py-2.5 rounded-lg transition flex items-center gap-1.5">
+              <i class="fa-solid fa-print"></i> Print Hardcopy Site Badge
+            </button>
+          </div>
+
+          <div class="flex items-center space-x-2">
+            <button onclick="savePermit()" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-3 py-2 rounded-lg transition">
+              <i class="fa-solid fa-cloud-arrow-up"></i> Save & Sync to Cloud
+            </button>
+            <button onclick="triggerIntervention('stop')" class="bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold px-3 py-2 rounded-lg transition">
+              <i class="fa-solid fa-ban"></i> Stop Work
+            </button>
+          </div>
+        </div>
+      </form>
+    </div>
+
+    <!-- VIEW 2: DASHBOARD & AUDIT TRAIL WITH EHS STATUS EDITING & DELETION -->
+    <div id="view-dashboard" class="hidden space-y-6">
+      <div class="bg-white rounded-2xl shadow-xl p-6 border border-slate-200">
+        <div class="flex flex-wrap justify-between items-center mb-6 gap-3">
+          <div>
+            <h2 class="text-xl font-bold text-slate-900">EHS Active Permit Registry</h2>
+            <p class="text-xs text-slate-500">Armstrong Electronics Real-Time Cloud Database</p>
+          </div>
+          <div class="flex items-center space-x-2">
+            <button onclick="createNewPermit()" class="bg-emerald-600 text-white text-xs font-bold px-4 py-2 rounded-lg hover:bg-emerald-500">+ Create New Application</button>
+          </div>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs border-collapse">
+            <thead>
+              <tr class="bg-slate-800 text-white uppercase text-[11px]">
+                <th class="p-3">Permit No</th>
+                <th class="p-3">Date Range</th>
+                <th class="p-3">Work Area</th>
+                <th class="p-3">Contractor</th>
+                <th class="p-3">HIRARC Ref</th>
+                <th class="p-3">Workflow Status (EHS Editable)</th>
+                <th class="p-3 text-center">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="registryTableBody" class="divide-y divide-slate-200">
+              <!-- Rendered via JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- EHS ADMIN PIN AUTHENTICATION MODAL -->
+  <div id="pinModal" class="fixed inset-0 bg-slate-950/80 z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 space-y-4 text-center">
+      <div class="w-12 h-12 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center mx-auto text-xl">
+        <i class="fa-solid fa-user-shield"></i>
+      </div>
+      <div>
+        <h3 class="font-bold text-base text-slate-900">EHS Administrator Access</h3>
+        <p class="text-xs text-slate-500 mt-1">Enter EHS Officer Admin PIN to unlock master editing, status management & deletion rights.</p>
+      </div>
+
+      <input type="password" id="rolePinInput" placeholder="Enter EHS PIN" class="w-full text-center text-lg font-mono tracking-widest border border-slate-300 p-2.5 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500">
+
+      <p id="pinErrorMsg" class="text-xs text-rose-600 font-semibold hidden">Incorrect EHS PIN! Access Denied.</p>
+
+      <div class="flex space-x-2 pt-2">
+        <button onclick="closePinModal()" class="w-1/2 py-2 text-xs bg-slate-100 text-slate-600 rounded-lg hover:bg-slate-200 font-medium">Cancel</button>
+        <button onclick="confirmRoleSwitch()" class="w-1/2 py-2 text-xs bg-amber-600 text-white rounded-lg hover:bg-amber-500 font-bold">Authenticate</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SIGNATURE CANVAS MODAL -->
+  <div id="signatureModal" class="fixed inset-0 bg-slate-950/70 z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-5 space-y-4">
+      <div class="flex justify-between items-center border-b pb-2">
+        <h3 id="sigModalTitle" class="font-bold text-sm text-slate-800">Digital Signature Authorization</h3>
+        <button onclick="closeSignatureModal()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-lg"></i></button>
+      </div>
+      
+      <p class="text-xs text-slate-500">Sign inside the box below to authorize Form EHS-FRM-917 Rev 2.</p>
+      
+      <div class="border-2 border-dashed border-slate-300 rounded-xl bg-slate-50 p-1">
+        <canvas id="sigCanvas" width="380" height="160" class="w-full h-40 touch-none cursor-crosshair bg-white rounded-lg"></canvas>
+      </div>
+
+      <div class="flex justify-between items-center gap-2">
+        <button onclick="clearCanvas()" class="text-xs text-rose-600 hover:underline font-semibold">Clear Canvas</button>
+        <div class="space-x-2">
+          <button onclick="closeSignatureModal()" class="px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-100 rounded-lg">Cancel</button>
+          <button onclick="saveSignature()" class="px-4 py-1.5 text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg">Apply Signature</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- FIREBASE CONFIGURATION & JAVASCRIPT APP LOGIC -->
+  <script>
+    // -------------------------------------------------------------
+    // REPLACE THIS FIREBASE CONFIG WITH YOUR OWN FIREBASE CONSOLE KEYS
+    // -------------------------------------------------------------
+    const firebaseConfig = {
+      apiKey: "YOUR_API_KEY",
+      authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+      databaseURL: "https://YOUR_PROJECT_ID-default-rtdb.firebaseio.com",
+      projectId: "YOUR_PROJECT_ID",
+      storageBucket: "YOUR_PROJECT_ID.appspot.com",
+      messagingSenderId: "YOUR_SENDER_ID",
+      appId: "YOUR_APP_ID"
+    };
+
+    // Initialize Firebase Engine
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+    const permitsRef = db.ref('aem_ptw_records');
+
+    let currentRole = 'requestor';
+    let currentSigTarget = null;
+    let canvas, ctx, isDrawing = false;
+    let permits = [];
+    
+    // AUTOMATIC PTW NUMBER GENERATOR BASED ON RECORD SEQUENCE
+    function generateNextPtwNumber() {
+      const year = new Date().getFullYear();
+      const nextSeq = permits.length + 1;
+      return `AEM-PTW-${year}-${String(nextSeq).padStart(4, '0')}`;
+    }
+
+    let activePermit = {
+      no: generateNextPtwNumber(),
+      hirarcAttached: false,
+      hirarcRef: '',
+      signatures: {},
+      stage: 'SUBMISSION_PENDING',
+      gateVerified: false
+    };
+
+    const EHS_ADMIN_PIN = "8888";
+
+    document.addEventListener('DOMContentLoaded', () => {
+      initCanvas();
+      setDefaultDates();
+      updateFormLockState();
+      document.getElementById('ptwNoDisplay').innerText = activePermit.no;
+
+      // REAL-TIME FIREBASE SYNCHRONIZATION LISTENER
+      permitsRef.on('value', (snapshot) => {
+        const data = snapshot.val();
+        if (data) {
+          permits = Object.values(data);
+        } else {
+          permits = [];
+        }
+        document.getElementById('cloudStatusTxt').innerText = "Active & Synced";
+        document.getElementById('cloudStatusTxt').className = "text-emerald-400 font-bold";
+        
+        // Refresh PTW number if starting a fresh application
+        if (activePermit.stage === 'SUBMISSION_PENDING' && !activePermit.area) {
+          activePermit.no = generateNextPtwNumber();
+          document.getElementById('ptwNoDisplay').innerText = activePermit.no;
+        }
+
+        renderRegistry();
+      }, (error) => {
+        document.getElementById('cloudStatusTxt').innerText = "Sync Error / Disconnected";
+        document.getElementById('cloudStatusTxt').className = "text-rose-400 font-bold";
+      });
+    });
+
+    // Dynamic Helper for Other inputs
+    function toggleOtherInput(chkId, txtId) {
+      const chk = document.getElementById(chkId);
+      const txt = document.getElementById(txtId);
+      if (chk && txt) {
+        if (chk.checked) {
+          txt.removeAttribute('disabled');
+          txt.disabled = false;
+          txt.classList.remove('bg-slate-100');
+          txt.classList.add('bg-white');
+          setTimeout(() => txt.focus(), 50);
+        } else {
+          txt.value = '';
+          txt.setAttribute('disabled', 'disabled');
+          txt.disabled = true;
+          txt.classList.add('bg-slate-100');
+          txt.classList.remove('bg-white');
+        }
+      }
+    }
+
+    // ROLE SWITCHING: PASSWORD FOR EHS ONLY, UNLOCKED FOR OTHERS
+    function requestRoleSwitch(targetRole) {
+      if (targetRole === currentRole) return;
+
+      if (targetRole === 'ehs') {
+        document.getElementById('rolePinInput').value = '';
+        document.getElementById('pinErrorMsg').classList.add('hidden');
+        document.getElementById('pinModal').classList.remove('hidden');
+        setTimeout(() => document.getElementById('rolePinInput').focus(), 100);
+      } else {
+        activateRole(targetRole);
+      }
+    }
+
+    function closePinModal() {
+      document.getElementById('pinModal').classList.add('hidden');
+    }
+
+    function confirmRoleSwitch() {
+      const pin = document.getElementById('rolePinInput').value;
+      if (pin === EHS_ADMIN_PIN) {
+        closePinModal();
+        activateRole('ehs');
+      } else {
+        document.getElementById('pinErrorMsg').classList.remove('hidden');
+      }
+    }
+
+    function activateRole(role) {
+      currentRole = role;
+      document.querySelectorAll('[id^="role-btn-"]').forEach(btn => {
+        btn.classList.remove('bg-emerald-600', 'text-white', 'bg-amber-600');
+        btn.classList.add('text-slate-300');
+      });
+      
+      const activeBtn = document.getElementById(`role-btn-${role}`);
+      if (role === 'ehs') {
+        activeBtn.classList.add('bg-amber-600', 'text-white');
+      } else {
+        activeBtn.classList.add('bg-emerald-600', 'text-white');
+      }
+
+      updateFormLockState();
+      renderRegistry();
+    }
+
+    // WORKFLOW PIPELINE ENFORCEMENT & MASTER EHS LOCKING/EDITING
+    function updateFormLockState() {
+      const isEhs = (currentRole === 'ehs');
+      const isDraft = (activePermit.stage === 'SUBMISSION_PENDING');
+
+      const allFormInputs = document.querySelectorAll('input, select, textarea');
+      
+      allFormInputs.forEach(input => {
+        if (input.id === 'rolePinInput' || input.id === 'hirarcRefInput') return;
+
+        if (isEhs) {
+          input.removeAttribute('disabled');
+        } else {
+          const section = input.closest('section');
+          if (section) {
+            const heading = section.querySelector('h3') ? section.querySelector('h3').innerText : '';
+            if ((heading.includes('PART 1') || heading.includes('PART 2') || heading.includes('PART 3') || heading.includes('PART 4') || heading.includes('PART 5')) && isDraft) {
+              input.removeAttribute('disabled');
+            } else {
+              input.setAttribute('disabled', 'disabled');
+            }
+          }
+        }
+      });
+
+      const btnAttach = document.getElementById('btn-attach-hirarc');
+      const btnRemove = document.getElementById('btn-remove-hirarc');
+      const hirarcInput = document.getElementById('hirarcRefInput');
+
+      if (isEhs || isDraft) {
+        btnAttach.removeAttribute('disabled');
+        btnRemove.removeAttribute('disabled');
+        hirarcInput.removeAttribute('disabled');
+        btnAttach.classList.remove('opacity-50');
+        btnRemove.classList.remove('opacity-50');
+      } else {
+        btnAttach.setAttribute('disabled', 'disabled');
+        btnRemove.setAttribute('disabled', 'disabled');
+        hirarcInput.setAttribute('disabled', 'disabled');
+        btnAttach.classList.add('opacity-50');
+        btnRemove.classList.add('opacity-50');
+      }
+
+      validateWorkDates();
+
+      const badge = document.getElementById('workflowBadge');
+      if (activePermit.stage === 'SUBMISSION_PENDING' || activePermit.stage === 'UNDER_DOCUMENT_REVIEW' || activePermit.stage === 'EHS_REVIEW') {
+        badge.innerText = "STEP 1: UNDER DOCUMENT REVIEW";
+        badge.className = "bg-amber-500 text-slate-950 px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider";
+      } else if (activePermit.stage === 'APPROVALS_PENDING') {
+        badge.innerText = "STEP 2: 4-PARTY APPROVAL SIGNATURES PENDING";
+        badge.className = "bg-purple-600 text-white px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider";
+      } else if (activePermit.stage === 'APPROVED') {
+        badge.innerText = "STEP 3: APPROVED - READY FOR WORK";
+        badge.className = "bg-emerald-600 text-white px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider";
+      } else if (activePermit.stage === 'WORK_IN_PROGRESS') {
+        badge.innerText = "STEP 4: WORKING IN PROGRESS";
+        badge.className = "bg-blue-600 text-white px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider";
+      } else if (activePermit.stage === 'CLOSED') {
+        badge.innerText = "STEP 5: PTW CLOSED & SITE CLEANLINESS VERIFIED";
+        badge.className = "bg-slate-600 text-white px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider";
+      }
+    }
+
+    function attachHirarc() {
+      const ref = document.getElementById('hirarcRefInput').value;
+      if (!ref.trim()) {
+        alert("Please enter a valid HIRARC Document Reference Number or File Name.");
+        return;
+      }
+      activePermit.hirarcAttached = true;
+      activePermit.hirarcRef = ref;
+      document.getElementById('hirarcStatusTxt').innerText = `Yes (${ref})`;
+      document.getElementById('hirarcStatusTxt').className = "text-emerald-400 font-bold";
+      alert(`HIRARC '${ref}' attached successfully to PTW.`);
+    }
+
+    function removeHirarc() {
+      if (!activePermit.hirarcAttached && !document.getElementById('hirarcRefInput').value) {
+        alert("No HIRARC reference is currently attached.");
+        return;
+      }
+      if (confirm("Are you sure you want to remove/detach the current HIRARC reference?")) {
+        activePermit.hirarcAttached = false;
+        activePermit.hirarcRef = '';
+        document.getElementById('hirarcRefInput').value = '';
+        document.getElementById('hirarcStatusTxt').innerText = "No";
+        document.getElementById('hirarcStatusTxt').className = "text-rose-300 font-bold";
+        alert("HIRARC document reference has been removed from this PTW.");
+      }
+    }
+
+    function submitToEhs() {
+      if (!activePermit.hirarcAttached) {
+        alert("MANDATORY REQUIREMENT: Please attach the HIRARC document reference before submitting to EHS!");
+        return;
+      }
+      activePermit.stage = 'UNDER_DOCUMENT_REVIEW';
+      savePermit();
+      alert("PTW and HIRARC submitted to EHS Officer for review!");
+    }
+
+    function routeForApprovals() {
+      if (currentRole !== 'ehs') {
+        alert("Only the EHS Administrator (PIN: 8888) can complete review and route the PTW for 4-party approvals.");
+        return;
+      }
+      activePermit.stage = 'APPROVALS_PENDING';
+      savePermit();
+      alert("PTW reviewed by EHS and routed back for Contractor, Requestor, EHS & Area Owner sign-offs.");
+    }
+
+    function switchView(view) {
+      document.getElementById('view-form').classList.toggle('hidden', view !== 'form');
+      document.getElementById('view-dashboard').classList.toggle('hidden', view !== 'dashboard');
+    }
+
+    function setDefaultDates() {
+      const today = new Date().toISOString().split('T')[0];
+      document.getElementById('appDate').value = today;
+      document.getElementById('workStartDate').value = today;
+      document.getElementById('workEndDate').value = today;
+      validateWorkDates();
+    }
+
+    function validateWorkDates() {
+      const startInput = document.getElementById('workStartDate');
+      const endInput = document.getElementById('workEndDate');
+      const badge = document.getElementById('dateValidityBadge');
+      
+      const hazards = Array.from(document.querySelectorAll('input[name="hazard_act"]:checked')).map(cb => cb.value);
+      const isHotWork = hazards.some(h => h.includes('Hot work') || h.includes('Drilling/Grinding/Cutting'));
+
+      const start = new Date(startInput.value);
+      const end = new Date(endInput.value);
+
+      if (currentRole === 'ehs' || activePermit.stage === 'SUBMISSION_PENDING' || activePermit.stage === 'UNDER_DOCUMENT_REVIEW') {
+        endInput.disabled = false;
+      } else {
+        endInput.disabled = true;
+      }
+
+      if (isHotWork) {
+        badge.innerText = "Notice: Hot Work proposed (EHS will review & cap to 1 day)";
+        badge.className = "font-bold text-amber-800 bg-amber-100 px-2.5 py-0.5 rounded-full border border-amber-300 text-[10px]";
+      } else {
+        if (end < start) {
+          endInput.value = startInput.value;
+        }
+
+        const diffTime = Math.abs(new Date(endInput.value) - new Date(startInput.value));
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+
+        if (diffDays > 7) {
+          alert("AEM-EHS-SOP-011 Clause 5.1 Limit: General PTW validity cannot exceed 7 days.");
+          const maxDate = new Date(start);
+          maxDate.setDate(maxDate.getDate() + 6);
+          endInput.value = maxDate.toISOString().split('T')[0];
+        }
+
+        const finalDays = Math.ceil(Math.abs(new Date(endInput.value) - new Date(startInput.value)) / (1000 * 60 * 60 * 24)) + 1;
+        badge.innerText = `Validity: ${finalDays} Day(s) Selected`;
+        badge.className = "font-bold text-emerald-800 bg-emerald-100 px-2.5 py-0.5 rounded-full border border-emerald-300 text-[10px]";
+      }
+    }
+
+    function openSignatureModal(target) {
+      if (activePermit.stage === 'SUBMISSION_PENDING' || activePermit.stage === 'UNDER_DOCUMENT_REVIEW') {
+        alert("SIGN-OFF LOCKED: PTW must be reviewed by EHS Officer first before approvals can be signed.");
+        return;
+      }
+
+      const requiredRoleMap = {
+        'requestor': 'requestor',
+        'contractor': 'contractor',
+        'ehs': 'ehs',
+        'owner': 'owner',
+        'close-contractor': 'contractor',
+        'close-requestor': 'requestor'
+      };
+
+      const neededRole = requiredRoleMap[target];
+      if (neededRole && currentRole !== neededRole) {
+        alert(`ROLE MISMATCH!\n\nYou are currently in '${currentRole.toUpperCase()}' mode. Please select '${neededRole.toUpperCase()}' at top header to sign.`);
+        return;
+      }
+
+      currentSigTarget = target;
+      document.getElementById('sigModalTitle').innerText = `Signature: ${target.toUpperCase().replace('-', ' ')}`;
+      document.getElementById('signatureModal').classList.remove('hidden');
+      clearCanvas();
+    }
+
+    function closeSignatureModal() {
+      document.getElementById('signatureModal').classList.add('hidden');
+    }
+
+    function initCanvas() {
+      canvas = document.getElementById('sigCanvas');
+      ctx = canvas.getContext('2d');
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = '#0f172a';
+
+      canvas.addEventListener('mousedown', startDraw);
+      canvas.addEventListener('mousemove', draw);
+      canvas.addEventListener('mouseup', stopDraw);
+      canvas.addEventListener('touchstart', startDraw);
+      canvas.addEventListener('touchmove', draw);
+      canvas.addEventListener('touchend', stopDraw);
+    }
+
+    function startDraw(e) {
+      isDrawing = true;
+      ctx.beginPath();
+      const pos = getPos(e);
+      ctx.moveTo(pos.x, pos.y);
+    }
+
+    function draw(e) {
+      if (!isDrawing) return;
+      const pos = getPos(e);
+      ctx.lineTo(pos.x, pos.y);
+      ctx.stroke();
+    }
+
+    function stopDraw() { isDrawing = false; }
+
+    function getPos(e) {
+      const rect = canvas.getBoundingClientRect();
+      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+      return { x: clientX - rect.left, y: clientY - rect.top };
+    }
+
+    function clearCanvas() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+
+    function saveSignature() {
+      const dataUrl = canvas.toDataURL();
+      const timestamp = new Date().toLocaleString();
+      
+      activePermit.signatures[currentSigTarget] = { dataUrl, timestamp };
+
+      const box = document.getElementById(`box-sig-${currentSigTarget}`);
+      const timeLbl = document.getElementById(`time-${currentSigTarget}`);
+
+      if (box) box.innerHTML = `<img src="${dataUrl}" class="max-h-full mx-auto" />`;
+      if (timeLbl) timeLbl.innerText = `Signed: ${timestamp}`;
+
+      const sigs = activePermit.signatures;
+      if (sigs.contractor && sigs.requestor && sigs.ehs && sigs.owner) {
+        activePermit.stage = 'APPROVED';
+      }
+
+      if (currentSigTarget === 'close-requestor') {
+        activePermit.stage = 'CLOSED';
+      }
+
+      savePermit();
+      closeSignatureModal();
+    }
+
+    function verifySecurityEntry() {
+      if (currentRole !== 'security' && currentRole !== 'ehs') {
+        alert("Only Security Guard or EHS Officer can log gate pass entry.");
+        return;
+      }
+      if (activePermit.stage !== 'APPROVED' && activePermit.stage !== 'WORK_IN_PROGRESS') {
+        alert("GATE DENIAL: Permit is not fully approved by all 4 parties yet!");
+        return;
+      }
+      activePermit.gateVerified = true;
+      activePermit.stage = 'WORK_IN_PROGRESS';
+      document.getElementById('gateStatusBadge').innerText = "CONTRACTOR ENTRY GRANTED";
+      document.getElementById('gateStatusBadge').className = "bg-emerald-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full";
+      document.getElementById('securityCheckDetails').innerText = `Hardcopy verified at Guard House on ${new Date().toLocaleString()}`;
+      document.getElementById('gatePassStatusTxt').innerText = "Granted";
+      document.getElementById('gatePassStatusTxt').className = "text-emerald-400 font-bold";
+      savePermit();
+    }
+
+    function triggerIntervention(type) {
+      if (type === 'stop') {
+        alert("STOP WORK ORDER ISSUED: Immediate safety correction required on site.");
+        activePermit.stage = "STOP WORK ORDER";
+      }
+      savePermit();
+    }
+
+    // REAL-TIME CLOUD SAVE / UPDATE FUNCTION
+    function savePermit() {
+      activePermit.area = document.getElementById('workArea').value;
+      activePermit.contractor = document.getElementById('contractorComp').value;
+      activePermit.requestor = document.getElementById('applicantName').value;
+      activePermit.startDate = document.getElementById('workStartDate').value;
+      activePermit.endDate = document.getElementById('workEndDate').value;
+
+      db.ref('aem_ptw_records/' + activePermit.no).set(activePermit)
+        .then(() => {
+          updateFormLockState();
+        })
+        .catch(err => alert("Cloud Sync Failed: " + err.message));
+    }
+
+    // DASHBOARD REGISTRY WITH REAL-TIME FIREBASE UPDATE & DELETION
+    function renderRegistry() {
+      const tbody = document.getElementById('registryTableBody');
+      const isEhs = (currentRole === 'ehs');
+
+      if (!permits.length) {
+        tbody.innerHTML = `<tr><td colspan="7" class="p-4 text-center text-slate-400">No PTW records found in Cloud Database.</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = permits.map((p, idx) => {
+        const isSelected = (p.no === activePermit.no);
+        const rowBg = isSelected ? 'bg-amber-50/70 border-l-4 border-amber-500' : 'hover:bg-slate-50';
+        
+        let statusOptionsHtml = '';
+        if (isEhs) {
+          statusOptionsHtml = `
+            <select onchange="updatePermitStatus(${idx}, this.value)" class="text-xs font-bold p-1 rounded border border-slate-300 outline-none bg-white">
+              <option value="UNDER_DOCUMENT_REVIEW" ${p.stage === 'UNDER_DOCUMENT_REVIEW' || p.stage === 'SUBMISSION_PENDING' || p.stage === 'EHS_REVIEW' ? 'selected' : ''}>Under Document Review</option>
+              <option value="APPROVED" ${p.stage === 'APPROVED' ? 'selected' : ''}>Approved</option>
+              <option value="WORK_IN_PROGRESS" ${p.stage === 'WORK_IN_PROGRESS' ? 'selected' : ''}>Working In Progress</option>
+              <option value="CLOSED" ${p.stage === 'CLOSED' ? 'selected' : ''}>Closed</option>
+              <option value="STOP WORK ORDER" ${p.stage === 'STOP WORK ORDER' ? 'selected' : ''}>Stop Work Order</option>
+            </select>
+          `;
+        } else {
+          let badgeClass = "bg-amber-100 text-amber-900 border-amber-300";
+          let labelText = "Under Document Review";
+          
+          if (p.stage === 'APPROVED') { badgeClass = "bg-emerald-100 text-emerald-800 border-emerald-300"; labelText = "Approved"; }
+          else if (p.stage === 'WORK_IN_PROGRESS') { badgeClass = "bg-blue-100 text-blue-800 border-blue-300"; labelText = "Working In Progress"; }
+          else if (p.stage === 'CLOSED') { badgeClass = "bg-slate-200 text-slate-800 border-slate-400"; labelText = "Closed"; }
+          else if (p.stage === 'STOP WORK ORDER') { badgeClass = "bg-rose-100 text-rose-800 border-rose-300"; labelText = "Stop Work Order"; }
+
+          statusOptionsHtml = `<span class="inline-block px-2.5 py-1 rounded-full text-[10px] font-bold border ${badgeClass}">${labelText}</span>`;
+        }
+
+        let deleteBtnHtml = '';
+        if (isEhs) {
+          deleteBtnHtml = `
+            <button onclick="deletePermit(${idx})" title="Delete Obsolete/Resubmission PTW" class="no-print bg-rose-100 hover:bg-rose-200 text-rose-700 px-2 py-1 rounded border border-rose-300 font-bold transition">
+              <i class="fa-solid fa-trash-can"></i>
+            </button>
+          `;
+        }
+
+        return `
+          <tr class="${rowBg}">
+            <td class="p-3 font-bold text-emerald-700 font-mono">${p.no}</td>
+            <td class="p-3">${p.startDate} to ${p.endDate}</td>
+            <td class="p-3">${p.area || 'N/A'}</td>
+            <td class="p-3">${p.contractor || 'N/A'}</td>
+            <td class="p-3 font-semibold text-slate-700">${p.hirarcRef || 'None'}</td>
+            <td class="p-3">${statusOptionsHtml}</td>
+            <td class="p-3 text-center">
+              <div class="flex items-center justify-center space-x-1.5">
+                <button onclick="loadPermitToForm(${idx})" class="no-print bg-slate-800 hover:bg-slate-700 text-white text-[11px] px-2.5 py-1 rounded font-medium transition">
+                  <i class="fa-solid fa-folder-open text-[10px] mr-1"></i> Open
+                </button>
+                ${deleteBtnHtml}
+              </div>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    // REAL-TIME CLOUD STATUS UPDATE
+    function updatePermitStatus(idx, newStatus) {
+      if (currentRole !== 'ehs') {
+        alert("Only EHS Administrators can modify PTW statuses!");
+        return;
+      }
+      const targetNo = permits[idx].no;
+      db.ref(`aem_ptw_records/${targetNo}/stage`).set(newStatus)
+        .then(() => {
+          if (activePermit.no === targetNo) {
+            activePermit.stage = newStatus;
+            updateFormLockState();
+          }
+          alert(`PTW ${targetNo} status updated to: ${newStatus.replace('_', ' ')}`);
+        });
+    }
+
+    // REAL-TIME CLOUD DELETE
+    function deletePermit(idx) {
+      if (currentRole !== 'ehs') {
+        alert("Only EHS Administrators can delete obsolete or resubmission PTWs!");
+        return;
+      }
+      const targetPtw = permits[idx].no;
+      if (confirm(`ARE YOU SURE YOU WANT TO DELETE PERMIT ${targetPtw} FROM CLOUD DATABASE?`)) {
+        db.ref(`aem_ptw_records/${targetPtw}`).remove()
+          .then(() => {
+            if (activePermit.no === targetPtw) {
+              createNewPermit();
+            }
+            alert(`PTW ${targetPtw} has been permanently deleted.`);
+          });
+      }
+    }
+
+    function loadPermitToForm(idx) {
+      activePermit = { ...permits[idx] };
+      document.getElementById('ptwNoDisplay').innerText = activePermit.no;
+      document.getElementById('workArea').value = activePermit.area || '';
+      document.getElementById('contractorComp').value = activePermit.contractor || '';
+      document.getElementById('applicantName').value = activePermit.requestor || '';
+      document.getElementById('workStartDate').value = activePermit.startDate || '';
+      document.getElementById('workEndDate').value = activePermit.endDate || '';
+      
+      if (activePermit.hirarcAttached) {
+        document.getElementById('hirarcRefInput').value = activePermit.hirarcRef;
+        document.getElementById('hirarcStatusTxt').innerText = `Yes (${activePermit.hirarcRef})`;
+        document.getElementById('hirarcStatusTxt').className = "text-emerald-400 font-bold";
+      } else {
+        document.getElementById('hirarcRefInput').value = '';
+        document.getElementById('hirarcStatusTxt').innerText = "No";
+        document.getElementById('hirarcStatusTxt').className = "text-rose-300";
+      }
+
+      updateFormLockState();
+      switchView('form');
+    }
+
+    function createNewPermit() {
+      activePermit = {
+        no: generateNextPtwNumber(),
+        hirarcAttached: false,
+        hirarcRef: '',
+        signatures: {},
+        stage: 'SUBMISSION_PENDING',
+        gateVerified: false
+      };
+      document.getElementById('ptwNoDisplay').innerText = activePermit.no;
+      document.getElementById('ptwForm').reset();
+      document.getElementById('hirarcRefInput').value = '';
+      document.getElementById('hirarcStatusTxt').innerText = "No";
+      document.getElementById('hirarcStatusTxt').className = "text-rose-300";
+      
+      ['act', 'haz', 'prep', 'ppe_resp', 'ppe', 'env'].forEach(type => {
+        const txt = document.getElementById(`txt_${type}_other`);
+        if (txt) { txt.disabled = true; txt.value = ''; txt.classList.add('bg-slate-100'); }
+      });
+
+      setDefaultDates();
+      updateFormLockState();
+      switchView('form');
+    }
+  </script>
+</body>
+</html>
